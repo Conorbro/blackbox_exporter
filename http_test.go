@@ -14,15 +14,18 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/config"
+	"github.com/prometheus/common/expfmt"
 )
 
 func TestHTTPStatusCodes(t *testing.T) {
@@ -74,15 +77,21 @@ func TestRedirectFollowed(t *testing.T) {
 	if !result {
 		t.Fatalf("Redirect test failed unexpectedly, got %s", body)
 	}
-
 	mfs, err := registry.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_http_redirects": 1,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_http_redirects 1")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected one redirect, got %s", body)
+	}
+
 }
 
 func TestRedirectNotFollowed(t *testing.T) {
@@ -138,10 +147,17 @@ func TestFailIfNotSSL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_http_ssl": 0,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_http_ssl 0")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected HTTP without SSL, got %s", body)
+	}
+
 }
 
 func TestFailIfMatchesRegexp(t *testing.T) {
@@ -313,10 +329,16 @@ func TestFailIfSelfSignedCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_http_ssl": 0,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_http_ssl 0")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected HTTP without SSL because of CA failure, got %s", body)
+	}
 }
 
 func TestSucceedIfSelfSignedCA(t *testing.T) {
@@ -338,10 +360,16 @@ func TestSucceedIfSelfSignedCA(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_http_ssl": 1,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_http_ssl 1")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected HTTP with SSL, got %s", body)
+	}
 }
 
 func TestTLSConfigIsIgnoredForPlainHTTP(t *testing.T) {
@@ -363,8 +391,15 @@ func TestTLSConfigIsIgnoredForPlainHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_http_ssl": 0,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_http_ssl 0")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected HTTP without SSL, got %s", body)
+	}
+
 }

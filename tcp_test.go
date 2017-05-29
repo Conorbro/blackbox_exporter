@@ -14,13 +14,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"net"
+	"regexp"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 )
 
 func TestTCPConnection(t *testing.T) {
@@ -190,10 +193,16 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults := map[string]float64{
-		"probe_ip_protocol": 4,
+	var buf bytes.Buffer
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re := regexp.MustCompile("probe_ip_protocol 4")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv4, got %s", buf.String())
+	}
 
 	// Force IPv6
 	module = Module{
@@ -210,10 +219,15 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults = map[string]float64{
-		"probe_ip_protocol": 6,
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	regexp.MustCompile("probe_ip_protocol 6")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv6, got %s", buf.String())
+	}
 
 	// Prefer IPv4
 	module = Module{
@@ -232,10 +246,15 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults = map[string]float64{
-		"probe_ip_protocol": 4,
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re = regexp.MustCompile("probe_ip_protocol 4")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv4, got %s", buf.String())
+	}
 
 	// Prefer IPv6
 	module = Module{
@@ -254,10 +273,15 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults = map[string]float64{
-		"probe_ip_protocol": 6,
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re = regexp.MustCompile("probe_ip_protocol 6")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv6, got %s", buf.String())
+	}
 
 	// Prefer nothing
 	module = Module{
@@ -274,10 +298,15 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults = map[string]float64{
-		"probe_ip_protocol": 6,
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re = regexp.MustCompile("probe_ip_protocol 6")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv6, got %s", buf.String())
+	}
 
 	// No protocol
 	module = Module{
@@ -294,8 +323,13 @@ func TestTCPConnectionProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedResults = map[string]float64{
-		"probe_ip_protocol": 6,
+	for _, mf := range mfs {
+		if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+			t.Fatal(err)
+		}
 	}
-	checkRegistryResults(expectedResults, mfs, t)
+	re = regexp.MustCompile("probe_ip_protocol 6")
+	if !re.Match(buf.Bytes()) {
+		t.Errorf("Expected IPv6, got %s", buf.String())
+	}
 }

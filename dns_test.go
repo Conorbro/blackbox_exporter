@@ -14,13 +14,16 @@
 package main
 
 import (
+	"bytes"
 	"net"
+	"regexp"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/expfmt"
 )
 
 var PROTOCOLS = [...]string{"udp", "tcp"}
@@ -126,12 +129,22 @@ func TestRecursiveDNSResponse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedResults := map[string]float64{
-				"probe_dns_answer_rrs":     2,
-				"probe_dns_authority_rrs":  0,
-				"probe_dns_additional_rrs": 0,
+			var buf bytes.Buffer
+			for _, mf := range mfs {
+				if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+					t.Fatal(err)
+				}
 			}
-			checkRegistryResults(expectedResults, mfs, t)
+
+			for _, re := range []*regexp.Regexp{
+				regexp.MustCompile("probe_dns_answer_rrs 2"),
+				regexp.MustCompile("probe_dns_authority_rrs 0"),
+				regexp.MustCompile("probe_dns_additional_rrs 0"),
+			} {
+				if !re.Match(buf.Bytes()) {
+					t.Errorf("Did not find expected output in test %d: %q", i, re)
+				}
+			}
 		}
 	}
 }
@@ -251,12 +264,22 @@ func TestAuthoritativeDNSResponse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedResults := map[string]float64{
-				"probe_dns_answer_rrs":     1,
-				"probe_dns_authority_rrs":  2,
-				"probe_dns_additional_rrs": 3,
+			var buf bytes.Buffer
+			for _, mf := range mfs {
+				if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+					t.Fatal(err)
+				}
 			}
-			checkRegistryResults(expectedResults, mfs, t)
+
+			for _, re := range []*regexp.Regexp{
+				regexp.MustCompile("probe_dns_answer_rrs 1"),
+				regexp.MustCompile("probe_dns_authority_rrs 2"),
+				regexp.MustCompile("probe_dns_additional_rrs 3"),
+			} {
+				if !re.Match(buf.Bytes()) {
+					t.Errorf("Did not find expected output in test %d: %q", i, re)
+				}
+			}
 		}
 	}
 }
@@ -307,12 +330,22 @@ func TestServfailDNSResponse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			expectedResults := map[string]float64{
-				"probe_dns_answer_rrs":     0,
-				"probe_dns_authority_rrs":  0,
-				"probe_dns_additional_rrs": 0,
+			var buf bytes.Buffer
+			for _, mf := range mfs {
+				if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+					t.Fatal(err)
+				}
 			}
-			checkRegistryResults(expectedResults, mfs, t)
+
+			for _, re := range []*regexp.Regexp{
+				regexp.MustCompile("probe_dns_answer_rrs 0"),
+				regexp.MustCompile("probe_dns_authority_rrs 0"),
+				regexp.MustCompile("probe_dns_additional_rrs 0"),
+			} {
+				if !re.Match(buf.Bytes()) {
+					t.Errorf("Did not find expected output in test %d: %q", i, re)
+				}
+			}
 		}
 	}
 }
@@ -352,11 +385,16 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		expectedResults := map[string]float64{
-			"probe_ip_protocol": 4,
+		var buf bytes.Buffer
+		for _, mf := range mfs {
+			if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re := regexp.MustCompile("probe_ip_protocol 4")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv4, got %s", buf.String())
+		}
 
 		// Force IPv6
 		module = Module{
@@ -375,10 +413,15 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expectedResults = map[string]float64{
-			"probe_ip_protocol": 6,
+		for _, mf := range mfs {
+			if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re = regexp.MustCompile("probe_ip_protocol 6")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv6, got %s", buf.String())
+		}
 
 		// Prefer IPv6
 		module = Module{
@@ -398,10 +441,15 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expectedResults = map[string]float64{
-			"probe_ip_protocol": 6,
+		for _, mf := range mfs {
+			if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re = regexp.MustCompile("probe_ip_protocol 6")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv6, got %s", buf.String())
+		}
 
 		// Prefer IPv4
 		module = Module{
@@ -421,11 +469,15 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		expectedResults = map[string]float64{
-			"probe_ip_protocol": 4,
+		for _, mf := range mfs {
+			if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re = regexp.MustCompile("probe_ip_protocol 4")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv4, got %s", buf.String())
+		}
 
 		// Prefer none
 		module = Module{
@@ -444,11 +496,15 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		expectedResults = map[string]float64{
-			"probe_ip_protocol": 6,
+		for _, mf := range mfs {
+			if _, err = expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re = regexp.MustCompile("probe_ip_protocol 6")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv6, got %s", buf.String())
+		}
 
 		// No protocol
 		module = Module{
@@ -472,10 +528,15 @@ func TestDNSProtocol(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expectedResults = map[string]float64{
-			"probe_ip_protocol": 6,
+		for _, mf := range mfs {
+			if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+				t.Fatal(err)
+			}
 		}
-		checkRegistryResults(expectedResults, mfs, t)
+		re = regexp.MustCompile("probe_ip_protocol 6")
+		if !re.Match(buf.Bytes()) {
+			t.Errorf("Expected IPv6, got %s", buf.String())
+		}
 
 	}
 }
