@@ -15,7 +15,6 @@ package main
 
 import (
 	"net"
-	"net/http"
 	"regexp"
 
 	"github.com/miekg/dns"
@@ -81,7 +80,7 @@ func validRcode(rcode int, valid []string) bool {
 	return false
 }
 
-func probeDNS(target string, w http.ResponseWriter, module Module, registry *prometheus.Registry) bool {
+func probeDNS(target string, module Module, registry *prometheus.Registry) bool {
 	var numAnswer, numAuthority, numAdditional int
 	var dialProtocol, fallbackProtocol string
 	probeIPProtocolGauge := prometheus.NewGauge(prometheus.GaugeOpts{

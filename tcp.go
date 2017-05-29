@@ -18,7 +18,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"regexp"
 	"time"
 
@@ -26,38 +25,30 @@ import (
 	"github.com/prometheus/common/log"
 )
 
-func dialTCP(target string, w http.ResponseWriter, module Module, protocolProbeGauge prometheus.Gauge) (net.Conn, error) {
+func dialTCP(target string, module Module, protocolProbeGauge prometheus.Gauge) (net.Conn, error) {
 	var dialProtocol, fallbackProtocol string
-
 	dialer := &net.Dialer{Timeout: module.Timeout}
-	if module.TCP.Protocol == "" {
-		module.TCP.Protocol = "tcp"
-	}
-	if module.TCP.Protocol == "tcp" && module.TCP.PreferredIPProtocol == "" {
+
+	if module.TCP.PreferredIPProtocol == "" {
 		module.TCP.PreferredIPProtocol = "ip6"
 	}
-	if module.TCP.PreferredIPProtocol == "ip6" {
-		fallbackProtocol = "ip4"
-	} else {
-		fallbackProtocol = "ip6"
+
+	targetAddress, _, err := net.SplitHostPort(target)
+	if err != nil {
+		return nil, err
+	}
+	ip, err := net.ResolveIPAddr(module.TCP.PreferredIPProtocol, targetAddress)
+	if err != nil {
+		ip, err = net.ResolveIPAddr(fallbackProtocol, targetAddress)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	dialProtocol = module.TCP.Protocol
-	if module.TCP.Protocol == "tcp" {
-		targetAddress, _, err := net.SplitHostPort(target)
-		ip, err := net.ResolveIPAddr(module.TCP.PreferredIPProtocol, targetAddress)
-		if err != nil {
-			ip, err = net.ResolveIPAddr(fallbackProtocol, targetAddress)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		if ip.IP.To4() == nil {
-			dialProtocol = "tcp6"
-		} else {
-			dialProtocol = "tcp4"
-		}
+	if ip.IP.To4() == nil {
+		dialProtocol = "tcp6"
+	} else {
+		dialProtocol = "tcp4"
 	}
 
 	if dialProtocol == "tcp6" {
@@ -76,7 +67,7 @@ func dialTCP(target string, w http.ResponseWriter, module Module, protocolProbeG
 	return tls.DialWithDialer(dialer, dialProtocol, target, config)
 }
 
-func probeTCP(target string, w http.ResponseWriter, module Module, registry *prometheus.Registry) bool {
+func probeTCP(target string, module Module, registry *prometheus.Registry) bool {
 	probeIPProtocolGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_ip_protocol",
 		Help: "Specifies whether probe ip protocol is IP4 or IP6",
@@ -88,7 +79,7 @@ func probeTCP(target string, w http.ResponseWriter, module Module, registry *pro
 	registry.MustRegister(probeIPProtocolGauge)
 	registry.MustRegister(probeSSLEarliestCertExpiry)
 	deadline := time.Now().Add(module.Timeout)
-	conn, err := dialTCP(target, w, module, probeIPProtocolGauge)
+	conn, err := dialTCP(target, module, probeIPProtocolGauge)
 	if err != nil {
 		return false
 	}

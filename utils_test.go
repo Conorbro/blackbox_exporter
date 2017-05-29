@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -9,12 +8,13 @@ import (
 
 // Check if expected results are in the registry
 func checkRegistryResults(expRes map[string]float64, mfs []*dto.MetricFamily, t *testing.T) {
+	res := make(map[string]float64)
 	for i := range mfs {
-		if _, ok := expRes[mfs[i].GetName()]; ok {
-			if expRes[mfs[i].GetName()] == mfs[i].Metric[0].GetGauge().GetValue() {
-			} else {
-				t.Fatal(fmt.Errorf("Expected %v %v, got %v %v", mfs[i].GetName(), expRes[mfs[i].GetName()], mfs[i].GetName(), mfs[i].Metric[0].GetGauge().GetValue()))
-			}
+		res[mfs[i].GetName()] = mfs[i].Metric[0].GetGauge().GetValue()
+	}
+	for k, v := range expRes {
+		if val, ok := res[k]; !ok || val != v {
+			t.Fatalf("Expected: %v: %v, got: %v: %v", k, v, k, val)
 		}
 	}
 }

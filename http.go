@@ -56,7 +56,7 @@ func matchRegularExpressions(reader io.Reader, config HTTPProbe) bool {
 	return true
 }
 
-func probeHTTP(target string, w http.ResponseWriter, module Module, registry *prometheus.Registry) (success bool) {
+func probeHTTP(target string, module Module, registry *prometheus.Registry) (success bool) {
 	var redirects int
 	var dialProtocol, fallbackProtocol string
 
@@ -100,46 +100,42 @@ func probeHTTP(target string, w http.ResponseWriter, module Module, registry *pr
 
 	config := module.HTTP
 
-	if module.HTTP.Protocol == "" {
-		module.HTTP.Protocol = "tcp"
-	}
-
-	if module.HTTP.Protocol == "tcp" && module.HTTP.PreferredIPProtocol == "" {
+	if module.HTTP.PreferredIPProtocol == "" {
 		module.HTTP.PreferredIPProtocol = "ip6"
 	}
+
 	if module.HTTP.PreferredIPProtocol == "ip6" {
 		fallbackProtocol = "ip4"
 	} else {
 		fallbackProtocol = "ip6"
 	}
+
 	if !strings.HasPrefix(target, "http://") && !strings.HasPrefix(target, "https://") {
 		target = "http://" + target
 	}
 
-	dialProtocol = module.HTTP.Protocol
-	if module.HTTP.Protocol == "tcp" {
-		targetURL, err := url.Parse(target)
+	dialProtocol = "tcp"
+	targetURL, err := url.Parse(target)
+	if err != nil {
+		return false
+	}
+	targetHost, _, err := net.SplitHostPort(targetURL.Host)
+	// If split fails, assuming it's a hostname without port part
+	if err != nil {
+		targetHost = targetURL.Host
+	}
+	ip, err := net.ResolveIPAddr(module.HTTP.PreferredIPProtocol, targetHost)
+	if err != nil {
+		ip, err = net.ResolveIPAddr(fallbackProtocol, targetHost)
 		if err != nil {
 			return false
 		}
-		targetHost, _, err := net.SplitHostPort(targetURL.Host)
-		// If split fails, assuming it's a hostname without port part
-		if err != nil {
-			targetHost = targetURL.Host
-		}
-		ip, err := net.ResolveIPAddr(module.HTTP.PreferredIPProtocol, targetHost)
-		if err != nil {
-			ip, err = net.ResolveIPAddr(fallbackProtocol, targetHost)
-			if err != nil {
-				return false
-			}
-		}
+	}
 
-		if ip.IP.To4() == nil {
-			dialProtocol = "tcp6"
-		} else {
-			dialProtocol = "tcp4"
-		}
+	if ip.IP.To4() == nil {
+		dialProtocol = "tcp6"
+	} else {
+		dialProtocol = "tcp4"
 	}
 
 	if dialProtocol == "tcp6" {
@@ -197,7 +193,6 @@ func probeHTTP(target string, w http.ResponseWriter, module Module, registry *pr
 	if config.Body != "" {
 		request.Body = ioutil.NopCloser(strings.NewReader(config.Body))
 	}
-
 	resp, err := client.Do(request)
 
 	// Err won't be nil if redirects were turned off. See https://github.com/golang/go/issues/3795
@@ -238,6 +233,5 @@ func probeHTTP(target string, w http.ResponseWriter, module Module, registry *pr
 	statusCodeGauge.Set(float64(resp.StatusCode))
 	contentLengthGauge.Set(float64(resp.ContentLength))
 	redirectsGauge.Set(float64(redirects))
-
 	return
 }

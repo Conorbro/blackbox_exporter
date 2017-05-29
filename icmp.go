@@ -16,7 +16,6 @@ package main
 import (
 	"bytes"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -41,7 +40,7 @@ func getICMPSequence() uint16 {
 	return icmpSequence
 }
 
-func probeICMP(target string, w http.ResponseWriter, module Module, registry *prometheus.Registry) (success bool) {
+func probeICMP(target string, module Module, registry *prometheus.Registry) (success bool) {
 	var (
 		socket               *icmp.PacketConn
 		requestType          icmp.Type
@@ -129,7 +128,7 @@ func probeICMP(target string, w http.ResponseWriter, module Module, registry *pr
 		log.Errorf("Error marshalling packet for %s: %s", target, err)
 		return
 	}
-	if _, err := socket.WriteTo(wb, ip); err != nil {
+	if _, err = socket.WriteTo(wb, ip); err != nil {
 		log.Warnf("Error writing to socket for %s: %s", target, err)
 		return
 	}
